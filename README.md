@@ -164,3 +164,12 @@ To produce value for the individual, for researchers, for institutions and for t
 ## License
 
 This project is released under the [MIT license](https://github.com/TheMTank/cups-rl/master/LICENSE).
+
+
+ldconfig -p | grep GL
+glxinfo | grep "OpenGL version"
+glxgears
+
+
+https://linustechtips.com/main/topic/1001417-installing-vulkan-on-ubuntu/
+https://askubuntu.com/questions/850900/why-is-my-opengl-version-stuck-at-3-0-despite-new-hardware-software

@@ -1,0 +1,7 @@
+README.md
+setup.py
+gym_ai2thor.egg-info/PKG-INFO
+gym_ai2thor.egg-info/SOURCES.txt
+gym_ai2thor.egg-info/dependency_links.txt
+gym_ai2thor.egg-info/requires.txt
+gym_ai2thor.egg-info/top_level.txt

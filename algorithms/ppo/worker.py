@@ -8,7 +8,11 @@ def reset(env, state_size, device):
     o = env.reset()
     mask_t = torch.tensor(0., dtype=torch.float32).to(device)
     prev_a = torch.tensor(0, dtype=torch.long).to(device)
-    obs_t = torch.Tensor(o / 255.).to(device)
+    print('Device>>>>>>>>>>>>>>>>>>>>>>>>>>>', type(device))
+    if not torch.is_tensor(o):
+        obs_t = torch.Tensor(o / 255.).to(device)
+    else:
+        obs_t = o
     state_t = torch.zeros(state_size, dtype=torch.float32).to(device)
     x = {"observation": obs_t,
          "memory": {
@@ -26,6 +30,7 @@ def worker(worker_id,
            ready_to_work,
            queue,
            exit_flag,
+           use_priors = False,
            task_config_file="config_files/config_example.json"):
     '''
     Worker function to collect experience based on policy and store the experience in storage
@@ -51,13 +56,18 @@ def worker(worker_id,
     r_sum, step_sum = 0., 0
 
     # Wait for start job
+    print('waiting>>>>>>>>>>>>>>>>>>')
     ready_to_work.wait()
+    print('waiting<<<<<<<<<<<<<<<<<<')
     while exit_flag.value != 1:
         for i in range(steps_per_epoch):
             with torch.no_grad():
                 a_t, logp_t, _, v_t, state_t = policy(x)
+           
             # interact with environment
             o, r, d, _ = env.step(a_t.item())
+            # print('o.shape', o.shape, type(o.shape))
+            
             r_sum += r  # accumulate reward within one rollout.
             step_sum += 1
             r_t = torch.tensor(r, dtype=torch.float32).to(device)
@@ -71,7 +81,12 @@ def worker(worker_id,
                             x["memory"]["state"],
                             x["memory"]["mask"])
             # prepare inputs for next step
-            x["observation"] = torch.Tensor(o/255.).to(device) # 128x128 -> 1x128x128
+            if use_priors:
+                x["observation"] = o
+            else:
+                x["observation"] = torch.Tensor(o/255.).to(device) # 128x128 -> 1x128x128
+            # print('x["observation"]', x["observation"].shape)
+            
             x["memory"]["state"] = state_t
             x["memory"]["mask"] = torch.tensor((d+1)%2, dtype=torch.float32).to(device)
             x["memory"]["action"] = a_t

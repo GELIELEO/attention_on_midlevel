@@ -17,6 +17,11 @@ from gym_ai2thor.image_processing import rgb2gray
 from gym_ai2thor.utils import read_config
 import gym_ai2thor.tasks
 
+import torch
+from visualpriors.transforms import multi_representation_transform
+from visualpriors.transforms import max_coverage_featureset_transform
+
+
 ALL_POSSIBLE_ACTIONS = [
     'MoveAhead',
     'MoveBack',
@@ -57,6 +62,16 @@ class AI2ThorEnv(gym.Env):
         self.np_random = None
         if seed:
             self.seed(seed)
+
+        self.use_priors = self.config['use_priors']
+        
+        if self.use_priors:
+            self.priors = self.config['priors']
+            self.mode = self.config['manual_mode']
+            self.k = self.config['k_max_cover']
+            
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
         # Object settings
         # acceptable objects taken from config file.
         if self.config['pickup_put_interaction'] or \
@@ -83,11 +98,15 @@ class AI2ThorEnv(gym.Env):
 
         # Image settings
         self.event = None
-        channels = 1 if self.config['grayscale'] else 3
-        self.observation_space = spaces.Box(low=0, high=255,
-                                            shape=(channels, self.config['resolution'][0],
-                                                   self.config['resolution'][1]),
-                                            dtype=np.uint8)
+
+        
+        # channels = 1 if self.config['grayscale'] else 3
+        # self.observation_space = spaces.Box(low=0, high=255,
+        #                                     shape=(channels, self.config['resolution'][0],
+        #                                            self.config['resolution'][1]),
+        #                                     dtype=np.uint8)
+
+
         # ai2thor initialise function settings
         self.metadata_last_object_attributes = ['lastObjectPut', 'lastObjectPutReceptacle',
                                                 'lastObjectPickedUp', 'lastObjectOpened',
@@ -116,9 +135,9 @@ class AI2ThorEnv(gym.Env):
                     self.build_file_path))
             self.controller.local_executable_path = self.build_file_path
 
-        self.controller.start()
+        # self.controller.start() # no more be needed in ai2thor version 2.2.0
 
-    def step(self, action, verbose=True):
+    def step(self, action, verbose=True, return_event=False):
         if not self.action_space.contains(action):
             raise error.InvalidAction('Action must be an integer between '
                                       '0 and {}!'.format(self.action_space.n))
@@ -172,7 +191,7 @@ class AI2ThorEnv(gym.Env):
                 for obj in visible_objects:
                     # look for closest closed receptacle to open it
                     is_closest_closed_receptacle = obj['openable'] and \
-                            obj['distance'] < distance and not obj['isopen'] and \
+                            obj['distance'] < distance and not obj['isOpen'] and \
                             obj['objectType'] in self.objects['openables']
                     if is_closest_closed_receptacle:
                         closest_openable = obj
@@ -187,7 +206,7 @@ class AI2ThorEnv(gym.Env):
                 for obj in visible_objects:
                     # look for closest opened receptacle to close it
                     is_closest_open_receptacle = obj['openable'] and obj['distance'] < distance \
-                                                 and obj['isopen'] and \
+                                                 and obj['isOpen'] and \
                                                  obj['objectType'] in self.objects['openables']
                     if is_closest_open_receptacle:
                         closest_openable = obj
@@ -231,8 +250,11 @@ class AI2ThorEnv(gym.Env):
         self.task.step_num += 1
         state_image = self.preprocess(self.event.frame)
         reward, done = self.task.transition_reward(self.event)
-        info = {}
-
+        if return_event:
+            info = self.event
+        else:
+            info = {}
+        
         return state_image, reward, done, info
 
     def preprocess(self, img):
@@ -240,11 +262,28 @@ class AI2ThorEnv(gym.Env):
         Compute image operations to generate state representation
         """
         # TODO: replace scikit image with opencv
+        # input shape: 300, 300, 3
         img = transform.resize(img, self.config['resolution'], mode='reflect')
         img = img.astype(np.float32)
-        if self.observation_space.shape[0] == 1:
-            img = rgb2gray(img)
-        img = np.moveaxis(img, 2, 0)
+
+        if self.config['grayscale']:
+            img = rgb2gray(img) #3 dims  1 channel
+            img = np.moveaxis(img, 2, 0)
+
+        elif self.use_priors:
+            img = np.moveaxis(img, 2, 0)
+            img = torch.Tensor(img).unsqueeze(0).to(self.device)
+
+            if self.priors == 'manual':
+                img = multi_representation_transform(img/255., self.mode)# 3 dims, tensor, no cuda
+            elif self.priors == 'max_cover':
+                img = max_coverage_featureset_transform(img/255., self.k)# 3 dims, tensor, no cuda
+            else: raise NotImplementedError
+            img = img.squeeze(0)
+
+        else:
+            img = np.moveaxis(img, 2, 0)# 4 dims
+        
         return img
 
     def reset(self):
@@ -258,10 +297,15 @@ class AI2ThorEnv(gym.Env):
                                                continuous=self.continuous_movement))
         self.task.reset()
         state = self.preprocess(self.event.frame)
+        self.observation_space = spaces.Box(low=0, high=255,
+                                            shape=(state.shape[0], state.shape[1],
+                                                   state.shape[2]),
+                                            dtype=np.uint8)
         return state
 
     def render(self, mode='human'):
-        raise NotImplementedError
+        # raise NotImplementedError
+        self.controller.step(dict(action='ToggleMapView'))
 
     def seed(self, seed=None):
         self.np_random, seed1 = seeding.np_random(seed)

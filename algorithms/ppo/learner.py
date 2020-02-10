@@ -6,6 +6,12 @@ from algorithms.ppo.ppo import PPO
 import torch.distributed as dist
 from tensorboardX import SummaryWriter
 
+# from visdom import Visdom
+
+# vis = Visdom()
+# assert vis.check_connection()
+# vis.close()
+# vis.line(X=[0.], Y=[0.], win='training_Rewards'+str(rank), opts=dict(title='training_Rewards'+str(rank)))
 
 def dist_sum(x):
     dist.all_reduce(x, dist.ReduceOp.SUM)
@@ -102,6 +108,9 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
         steps_sum = np.sum(rollout_steps)
         episode_count = len(rollout_ret)
 
+        #visdom
+        # vis.line(X=[episode_count], Y=[ret_sum], win='training_Rewards'+str(rank), update='append')
+
         if distributed:
             pi_loss = dist_mean(pi_loss)
             v_loss = dist_mean(v_loss)
@@ -137,9 +146,9 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
         
         if (epoch + 1) % 20 == 0 and rank == 0:
             if distributed:
-                torch.save(model.module.state_dict(), f'model{epoch+1}.pt')
+                torch.save(model.module.state_dict(), f'model/ppo/model{epoch+1}.pt')
             else:
-                torch.save(model.state_dict(), f'model{epoch+1}.pt')
+                torch.save(model.state_dict(), f'model/ppo/model{epoch+1}.pt')
         print("finish statistics")
         
     print(f"learner with pid ({os.getpid()})  finished job")

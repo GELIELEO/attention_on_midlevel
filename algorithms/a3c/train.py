@@ -20,17 +20,17 @@ import torch.optim as optim
 from gym_ai2thor.envs.ai2thor_env import AI2ThorEnv
 from algorithms.a3c.envs import create_atari_env
 from algorithms.a3c.model import ActorCritic
+from visdom import Visdom
 
 
 def ensure_shared_grads(model, shared_model):
     for param, shared_param in zip(model.parameters(),
                                    shared_model.parameters()):
-        if shared_param.grad is not None:
-            return
+        if shared_param.grad is not None: return
         shared_param._grad = param.grad
 
 
-def train(rank, args, shared_model, counter, lock, optimizer=None):
+def train(rank, args, shared_model, counter, lock, device, optimizer=None):
     torch.manual_seed(args.seed + rank)
 
     if args.atari:
@@ -41,6 +41,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
     env.seed(args.seed + rank)
 
     model = ActorCritic(env.observation_space.shape[0], env.action_space.n, args.frame_dim)
+    model = model.to(device)
 
     if optimizer is None:
         optimizer = optim.Adam(shared_model.parameters(), lr=args.lr)
@@ -59,7 +60,15 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
     total_length = 0
     episode_length = 0
+    episodes = 0
+
+    vis = Visdom()
+    assert vis.check_connection()
+    vis.close()
+    vis.line(X=[0.], Y=[0.], win='training_Rewards'+str(rank), opts=dict(title='training_Rewards'+str(rank)))
+
     while True:
+        episodes += 1
         # Sync with the shared model
         model.load_state_dict(shared_model.state_dict())
         if done:
@@ -77,7 +86,11 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
         for step in range(args.num_steps):
             episode_length += 1
             total_length += 1
-            value, logit, (hx, cx) = model((state.unsqueeze(0).float(), (hx, cx)))
+            value, logit, (hx, cx) = model((state.unsqueeze(0).float().cuda(), (hx.cuda(), cx.cuda())))
+            value = value.cpu()
+            logit = logit.cpu()
+            hx = hx.cpu()
+            cx = cx.cpu()
             prob = F.softmax(logit, dim=-1)
             log_prob = F.log_softmax(logit, dim=-1)
             entropy = -(log_prob * prob).sum(1, keepdim=True)
@@ -95,15 +108,18 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
                 counter.value += 1
 
             if done:
-                episode_length = 0
                 total_length -= 1
                 total_reward_for_episode = sum(all_rewards_in_episode)
                 episode_total_rewards_list.append(total_reward_for_episode)
                 all_rewards_in_episode = []
-                state = env.reset()
-                print('Episode Over. Total Length: {}. Total reward for episode: {}'.format(
+                
+                vis.line(X=[episodes], Y=[total_reward_for_episode], win='training_Rewards'+str(rank), update='append')
+                print('In Train. Episode Over. Total Length: {}. Total reward for episode: {}'.format(
                                             total_length,  total_reward_for_episode))
-                print('Step no: {}. total length: {}'.format(episode_length, total_length))
+                print('In Train. Step no: {}. total length: {}'.format(episode_length, total_length))
+
+                episode_length = 0
+                state = env.reset()
 
             state = torch.from_numpy(state)
             values.append(value)
@@ -113,10 +129,11 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
             if done:
                 break
-
+        
+        
         # No interaction with environment below.
         # Monitoring
-        total_reward_for_num_steps = sum(rewards)
+        total_reward_for_num_steps = sum(rewards) # accumulate at each step
         total_reward_for_num_steps_list.append(total_reward_for_num_steps)
         avg_reward_for_num_steps = total_reward_for_num_steps / len(rewards)
         avg_reward_for_num_steps_list.append(avg_reward_for_num_steps)
@@ -146,7 +163,7 @@ def train(rank, args, shared_model, counter, lock, optimizer=None):
 
         optimizer.zero_grad()
 
-        (policy_loss + args.value_loss_coef * value_loss).backward()
+        (policy_loss + args.value_loss_coef * value_loss).cuda().backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
 
         ensure_shared_grads(model, shared_model)

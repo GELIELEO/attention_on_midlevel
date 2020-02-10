@@ -1,0 +1,4 @@
+gym
+ai2thor
+numpy
+scikit-image

@@ -14,10 +14,12 @@
         "Microwave"
     ],
     "scene_id": "FloorPlan28",
-    "grayscale": true,
-    "resolution": [128, 128],
-    "cameraY": 0.0,
-    "gridSize": 0.1,
+    "use_priors": false,
+    "priors": "manual",
+    "grayscale": false,
+    "resolution": [300, 300],
+    "cameraY": 0.25,
+    "gridSize": 0.1, 
     "continuous_movement": false,
     "build_file_name": false,
     "task": {

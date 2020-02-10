@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from gym_ai2thor.envs.ai2thor_env import AI2ThorEnv
 from algorithms.a3c.envs import create_atari_env
 from algorithms.a3c.model import ActorCritic
-
+from visdom import Visdom
 
 def test(rank, args, shared_model, counter):
     torch.manual_seed(args.seed + rank)
@@ -34,13 +34,21 @@ def test(rank, args, shared_model, counter):
     state = env.reset()
     state = torch.from_numpy(state)
     reward_sum = 0
-    done = True
+    done = True # be True at the beginning
 
     start_time = time.time()
 
     # a quick hack to prevent the agent from stucking
     actions = deque(maxlen=100)
     episode_length = 0
+    episodes = 0
+
+    vis = Visdom()
+    assert vis.check_connection()
+    vis.close()
+    win = vis.line(X=[0.], Y=[0.], win='testing_Rewards', opts=dict(title='testing_Rewards'))
+
+
     while True:
         episode_length += 1
         if args.atari and args.atari_render:
@@ -56,6 +64,7 @@ def test(rank, args, shared_model, counter):
 
         with torch.no_grad():
             value, logit, (hx, cx) = model((state.unsqueeze(0).float(), (hx, cx)))
+        
         prob = F.softmax(logit, dim=-1)
         action = prob.max(1, keepdim=True)[1].numpy()
 
@@ -72,15 +81,19 @@ def test(rank, args, shared_model, counter):
             done = True
 
         if done:
-            print("Time {}, num steps over all threads {}, FPS {:.0f}, episode reward {}, episode length {}".format(
+            print("In test. Time {}, num steps over all threads {}, FPS {:.0f}, episode reward {}, episode length {}".format(
                 time.strftime("%Hh %Mm %Ss",
                               time.gmtime(time.time() - start_time)),
                 counter.value, counter.value / (time.time() - start_time),
                 reward_sum, episode_length))
+            vis.line(X=[episodes], Y=[reward_sum], win='testing_Rewards', update='append')
+            episodes += 1
+
             reward_sum = 0
             episode_length = 0
             actions.clear()
             state = env.reset()
-            time.sleep(args.test_sleep_time)
+            time.sleep(args.test_sleep_time) # wasting resource...
+            print('testing...')
 
         state = torch.from_numpy(state)

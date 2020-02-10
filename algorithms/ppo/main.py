@@ -1,3 +1,7 @@
+# noted by chan
+# This program about A3C is really resource wasting, because it assigned each process with a model, each training process has its own model and is must share the infomation with golbal shared model, it is wasted and unnecesarry
+
+
 import os
 import torch
 import numpy as np
@@ -17,8 +21,10 @@ def train_ai2thor(model, args, rank=0, b=None):
     np.random.seed(seed)
 
     # torch.cuda.set_device(rank)
-    device = torch.device(f'cuda:{rank}')
-    os.environ['DISPLAY'] = f':{rank}'
+    # device = torch.device(f'cuda:{rank}')
+    device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
+    # if torch.cuda.is_available():
+    #     os.environ['DISPLAY'] = f':{rank}'
 
     model = model.to(device)
     model.share_memory()
@@ -34,10 +40,12 @@ def train_ai2thor(model, args, rank=0, b=None):
     queue = SimpleQueue()
 
     processes = []
+    # task_config_file = "config_files/multiMugTaskTrain.json"
     task_config_file = "config_files/multiMugTaskTrain.json"
     # start workers
     for worker_id in range(args.num_workers):
-        p = Process(target=worker, args=(worker_id, model, storage, ready_to_works[worker_id], queue, exit_flag, task_config_file))
+        print('START>>>>>>>>>>>>>>>>')
+        p = Process(target=worker, args=(worker_id, model, storage, ready_to_works[worker_id], queue, exit_flag, args.use_priors, task_config_file))
         p.start()
         processes.append(p)
 
@@ -59,15 +67,17 @@ def train_ai2thor(model, args, rank=0, b=None):
     
     distributed = False
     if args.world_size > 1:
-        distributed = True
-        # Initialize Process Group, distributed backend type
-        dist_backend = 'nccl'
-        # Url used to setup distributed training
-        dist_url = "tcp://127.0.0.1:23456"
-        print("Initialize Process Group... pid:", os.getpid())
-        dist.init_process_group(backend=dist_backend, init_method=dist_url, rank=rank, world_size=args.world_size)
-        # Make model DistributedDataParallel
-        model = DistributedDataParallel(model, device_ids=[rank], output_device=rank)
+        if distributed==True:
+            distributed = True
+            # Initialize Process Group, distributed backend type
+            dist_backend = 'nccl'
+            # Url used to setup distributed training
+            dist_url = "tcp://127.0.0.1:23456"
+            print("Initialize Process Group... pid:", os.getpid())
+            dist.init_process_group(backend=dist_backend, init_method=dist_url, rank=rank, world_size=args.world_size)
+            # Make model DistributedDataParallel
+            model = DistributedDataParallel(model, device_ids=[rank], output_device=rank)
+    else: print('Distribution is not allowed')
         
     learner(model, storage, train_params, ppo_params, ready_to_works, queue, exit_flag, rank, distributed, b)
 
@@ -81,11 +91,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--world-size', type=int, default=2)
+    parser.add_argument('--world-size', type=int, default=1)
     parser.add_argument('--steps', type=int, default=2048)
-    parser.add_argument('--num-workers', type=int, default=4)
+    parser.add_argument('--num-workers', type=int, default=2)
     parser.add_argument('--mini-batch-size', type=int, default=128)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=10000)
     parser.add_argument('--train-iters', type=int, default=10)
     parser.add_argument('--model-path', type=str, default=None)
 
@@ -97,17 +107,22 @@ if __name__ == '__main__':
     parser.add_argument('--value_loss_coef', type=float, default=0.2)
     parser.add_argument('--entropy_coef', type=float, default=0.001)
     parser.add_argument('--max-kl', type=float, default=0.01)
+    
+    parser.add_argument('--use-priors', type=bool, default=True)
+    parser.add_argument('--use-attention', type=bool, default=False)
 
     args = parser.parse_args()
     torch.multiprocessing.set_start_method('spawn')
 
     # get observation dimension
     env = AI2ThorEnv(config_file="config_files/multiMugTaskTrain.json")
+    env.reset()
     obs_dim = env.observation_space.shape
     # Share information about action space with policy architecture
     ac_kwargs = dict()
     ac_kwargs['action_space'] = env.action_space
     ac_kwargs['state_size'] = args.state_size
+    ac_kwargs['use_attention'] = args.use_attention
     env.close()
     # Main model
     print("Initialize Model...")

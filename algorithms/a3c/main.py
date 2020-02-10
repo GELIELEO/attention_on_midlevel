@@ -23,7 +23,7 @@ from algorithms.a3c import my_optim
 from algorithms.a3c.model import ActorCritic
 from algorithms.a3c.test import test
 from algorithms.a3c.train import train
-
+from algorithms.utils.saver import TrainingSaver
 
 # Based on: https://github.com/pytorch/examples/tree/master/mnist_hogwild
 # Training settings
@@ -42,16 +42,23 @@ parser.add_argument('--max-grad-norm', type=float, default=50,
                     help='value loss coefficient (default: 50)')
 parser.add_argument('--seed', type=int, default=1,
                     help='random seed (default: 1)')
-parser.add_argument('--test-sleep-time', type=int, default=200,
+parser.add_argument('--test-sleep-time', type=int, default=100,
                     help='number of seconds to wait before testing again (default: 200)')
+
 parser.add_argument('--num-processes', type=int, default=4,
                     help='how many training processes to use (default: 1)')
-parser.add_argument('--num-steps', type=int, default=20,
+
+parser.add_argument('--num-steps', type=int, default=25,
                     help='number of forward steps in A3C (default: 20)')
-parser.add_argument('--max-episode-length', type=int, default=1000,
-                    help='maximum length of an episode (default: 1000000)')
+parser.add_argument('--max-episode-length', type=int, default=25,
+                    help='maximum length of an episode (default: 1000)')
+
 parser.add_argument('--no-shared', default=False,
                     help='use an optimizer without shared momentum.')
+
+parser.add_argument('--restore', type=int, default=None)
+parser.add_argument('--save', dest='save', action='store_true')
+
 parser.add_argument('-sync', '--synchronous', dest='synchronous', action='store_true',
                     help='Useful for debugging purposes e.g. import pdb; pdb.set_trace(). '
                          'Overwrites args.num_processes as everything is in main thread. '
@@ -72,8 +79,13 @@ parser.set_defaults(atari_render=False)
 
 
 if __name__ == '__main__':
+    mp.set_start_method('forkserver')
     os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ""
+    # os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+
+    torch.cuda.empty_cache()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('Device:',device)
 
     args = parser.parse_args()
 
@@ -86,6 +98,7 @@ if __name__ == '__main__':
         env = AI2ThorEnv(config_dict=args.config_dict)
         args.frame_dim = env.config['resolution'][-1]
     shared_model = ActorCritic(env.observation_space.shape[0], env.action_space.n, args.frame_dim)
+    shared_model = shared_model.to(device)
     shared_model.share_memory()
 
     env.close()  # above env initialisation was only to find certain params needed
@@ -96,23 +109,37 @@ if __name__ == '__main__':
         optimizer = my_optim.SharedAdam(shared_model.parameters(), lr=args.lr)
         optimizer.share_memory()
 
+    saver = TrainingSaver([shared_model], optimizer)
+    
+    if args.restore is not None: saver.restore(args.restore)
+
     processes = []
 
     counter = mp.Value('i', 0)
     lock = mp.Lock()
 
     if not args.synchronous:
+        # asynchronous
         # test runs continuously and if episode ends, sleeps for args.test_sleep_time seconds
-        p = mp.Process(target=test, args=(args.num_processes, args, shared_model, counter))
-        p.start()
-        processes.append(p)
+        # p = mp.Process(target=test, args=(args.num_processes, args, shared_model, counter))
+        # p.start()
+        # processes.append(p)
 
-        for rank in range(0, args.num_processes):
-            p = mp.Process(target=train, args=(rank, args, shared_model, counter, lock, optimizer))
-            p.start()
-            processes.append(p)
-        for p in processes:
-            p.join()
+        try:
+            for rank in range(0, args.num_processes):
+                p = mp.Process(target=train, args=(rank, args, shared_model, counter, lock, device, optimizer))
+                p.start()
+                processes.append(p)
+            for p in processes:
+                p.join()
+        except KeyboardInterrupt:
+            torch.cuda.empty_cache()
+            if args.save:
+                print('Existing and saving model...')
+                saver.save(counter.value)
+            else:
+                print('Existing...')
+            
     else:
         rank = 0
         # test(args.num_processes, args, shared_model, counter)  # for checking test functionality

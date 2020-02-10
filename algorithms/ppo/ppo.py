@@ -39,6 +39,7 @@ class PPO():
 
             for batch in batch_gen:
                 obs, act, adv, ret, logp_old, state, mask, pre_action = batch
+                print('shape of obs, state, mask', obs.shape, state.shape, mask.shape) #shape of obs, state, mask torch.Size([128, 1, 128, 128]) torch.Size([128, 128]) torch.Size([128])
                 x = {"observation":obs,
                      "memory":{
                          "state":state,

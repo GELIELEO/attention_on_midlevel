@@ -5,6 +5,8 @@ from torch.distributions.categorical import Categorical
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 import scipy.signal
 
+from algorithms.attention.cbam import CBAM
+from algorithms.attention.bam import BAM
 
 def count_vars(module):
     return sum(p.numel() for p in module.parameters() if p.requires_grad)
@@ -85,11 +87,12 @@ class CNNRNNBase(nn.Module):
         # pre_action has shape [batch]
         # state_mask has shape [batch]
         # pre_state has shape   [batch, hidden_state_size]
-        if len(current_obs.size()) == 3:  # if batch forgotten, with 1 time step
-            current_obs = current_obs.unsqueeze(0)
-            pre_action = pre_action.unsqueeze(0)
-            state_mask = state_mask.unsqueeze(0)
-            pre_state = pre_state.unsqueeze(0)
+
+        # if len(current_obs.size()) == 3:  # if batch forgotten, with 1 time step
+        #     current_obs = current_obs.unsqueeze(0)
+        #     pre_action = pre_action.unsqueeze(0)
+        #     state_mask = state_mask.unsqueeze(0)
+        #     pre_state = pre_state.unsqueeze(0)
 
         cnn = F.elu(self.conv1(current_obs))
         cnn = F.elu(self.conv2(cnn))
@@ -175,10 +178,13 @@ class ActorCritic(nn.Module):
                  hidden_sizes=(64, 64),
                  state_size = 128,
                  activation=torch.tanh,
-                 output_activation=None):
+                 output_activation=None,
+                 use_attention=False):
         super(ActorCritic, self).__init__()
 
         self.obs_shape =obs_shape
+        ch, w, _ = obs_shape
+        self.use_attention = use_attention
 
         self.feature_base = CNNRNNBase(
             obs_shape=obs_shape,
@@ -198,14 +204,29 @@ class ActorCritic(nn.Module):
             activation=activation,
             output_squeeze=True)
 
+        if self.use_attention == True:
+            self.cbam = CBAM(gate_channels=ch, reduction_ratio=2)
+
     def forward(self, inputs, action=None, rnn_step_size=1):
         current_obs = inputs["observation"]
+        # print('shape of current obs', current_obs.shape, type(current_obs))
         pre_action = inputs["memory"]["action"]
         pre_state = inputs["memory"]["state"]
         state_mask = inputs["memory"]["mask"]
+
+        if len(current_obs.size()) == 3:  # if batch forgotten, with 1 time step
+            current_obs = current_obs.unsqueeze(0)
+            pre_action = pre_action.unsqueeze(0)
+            state_mask = state_mask.unsqueeze(0)
+            pre_state = pre_state.unsqueeze(0)
+        
+        if self.use_attention == True:
+            current_obs = self.cbam(current_obs)
+
         states = self.feature_base(current_obs, pre_action, pre_state, state_mask, rnn_step_size=rnn_step_size)
         a, logp_a, ent = self.policy(states, action)
         v = self.value_function(states)
+
         return a, logp_a, ent, v, states[-1]
 
 class PPOBuffer:
