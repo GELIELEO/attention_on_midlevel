@@ -1,5 +1,5 @@
 import ai2thor.controller
-# import ai2thor.robot_controller
+import ai2thor.robot_controller
 import random
 import time
 import numpy as np

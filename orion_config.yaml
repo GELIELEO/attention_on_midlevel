@@ -1,0 +1,32 @@
+#algorithms: gradient_descenti
+
+# random(default)
+#algorithms:
+#  random:
+#    seed: null
+ 
+
+# for asha
+algorithms:
+  asha:
+    seed: null
+    num_rungs: null
+    num_brackets: 1
+
+producer:
+    strategy: StubParallelStrategy 
+
+
+
+# for By
+#algorithms:
+#   BayesianOptimizer:
+#      seed: null
+#      n_initial_points: 10
+#      acq_func: gp_hedge
+#      alpha: 1e-10
+#      n_restarts_optimizer: 0
+#      noise: "gaussian"
+#      normalize_y: False
+ 
+               

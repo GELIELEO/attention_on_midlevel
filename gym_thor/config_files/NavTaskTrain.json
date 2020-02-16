@@ -1,0 +1,46 @@
+{
+    "render_options": {"depth": false},
+    "open_close_interaction": true,
+    "pickup_put_interaction": true,
+    "pickup_objects": [
+        "Mug"
+    ],
+    "acceptable_receptacles": [
+        "CounterTop",
+        "TableTop",
+        "Sink"
+    ],
+    "openable_objects": [
+        "Microwave"
+    ],
+    "scene_id": "FloorPlan_Train1_1",
+    "use_priors": false,
+    "priors": "max_cover",
+    "k_max_cover": 3,
+    "manual_mode": ["autoencoding", "depth_euclidean"],
+    "grayscale": false,
+    "resolution": [128, 128],
+    "cameraY": 0.0,
+    "gridSize": 0.1,
+    "continuous_movement": false,
+    "build_file_name": false,
+    "movement_reward":-0.001,
+    "max_episode_length":1024,
+    "task": {
+        "task_name": "PickUpTaskWithGoal",
+        "target_objects": {"Mug": 1},
+        "goal": 5
+    },
+
+    "agentMode": "bot",
+
+    "initialize":{
+    "rotateStepDegrees": 30,
+    "visibilityDistance": 1.0,
+    "gridSize": 0.25,
+    "agentType": "stochastic",
+    "continuousMode": true,
+    "snapToGrid": false
+    }
+
+}

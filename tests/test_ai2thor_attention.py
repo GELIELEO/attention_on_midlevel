@@ -12,7 +12,7 @@ default_device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 if __name__ == '__main__':
-    config_dict = {'max_episode_length': 2000, 'use_priors': False}
+    config_dict = {'max_episode_length': 2000, 'use_priors': False, 'agentMode':'thor'}
     env = AI2ThorEnv(config_dict=config_dict)
     max_episode_length = env.task.max_episode_length
     cbam = CBAM(gate_channels=8, reduction_ratio=3).cuda()

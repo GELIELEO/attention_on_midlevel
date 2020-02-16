@@ -1,0 +1,39 @@
+{
+    
+    "scene_id": "FloorPlan_Train1_1",
+    "use_priors": false,
+    "priors": "max_cover",
+    "k_max_cover": 3,
+    "manual_mode": ["autoencoding", "depth_euclidean"],
+    
+    "grayscale": false,
+    "resolution": [128, 128],
+    "build_file_name": false,
+
+    "movement_reward":-0.01,
+    "max_episode_length":500,
+    "task": {
+        "task_name": "NavTask"
+    },
+
+    "initialize":{
+    "scene": "FloorPlan_Train1_1",
+    "width": 640,
+    "height": 640,
+    "cameraY": 0.675,
+    "fieldOfView": 90.0,
+    "rotateStepDegrees": 30,
+    "visibilityDistance": 1.0,
+    "gridSize": 0.25,
+    "agentType": "stochastic",
+    "agentMode": "bot",
+    "continuousMode": true,
+    "snapToGrid": false,
+    "applyActionNoise": true,
+    "renderDepthImage": false,
+    "renderClassImage": false,
+    "renderObjectImage": false
+
+    }
+
+}
