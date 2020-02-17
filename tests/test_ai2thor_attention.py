@@ -1,6 +1,6 @@
-from gym_ai2thor.envs.ai2thor_env import AI2ThorEnv
-from algorithms.attention.cbam import CBAM
-from algorithms.attention.bam import BAM
+from gym_robothor.envs.robothor_env import RoboThorEnv
+from alg_robothor.attention.cbam import CBAM
+from alg_robothor.attention.bam import BAM
 import torch
 from visualpriors.transforms import multi_representation_transform
 from visualpriors.transforms import representation_transform
@@ -12,8 +12,8 @@ default_device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 if __name__ == '__main__':
-    config_dict = {'max_episode_length': 2000, 'use_priors': False, 'agentMode':'thor'}
-    env = AI2ThorEnv(config_dict=config_dict)
+    config_dict = {'max_episode_length': 2000, 'use_priors': False}
+    env = RoboThorEnv(config_dict=config_dict)
     max_episode_length = env.task.max_episode_length
     cbam = CBAM(gate_channels=8, reduction_ratio=3).cuda()
     for episode in range(N_EPISODES):

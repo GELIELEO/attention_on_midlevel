@@ -5,8 +5,8 @@ from torch.distributions.categorical import Categorical
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 import scipy.signal
 
-from algorithms.attention.cbam import CBAM
-from algorithms.attention.bam import BAM
+from alg_robothor.attention.cbam import CBAM
+from alg_robothor.attention.bam import BAM
 
 def count_vars(module):
     return sum(p.numel() for p in module.parameters() if p.requires_grad)
@@ -354,7 +354,7 @@ class PPOBuffer:
             yield [
                 self.obs_buf[idx], self.act_buf[idx], self.adv_buf[idx], self.ret_buf[idx],
                 self.logp_buf[idx], self.h_buf[idx], self.mask_buf[idx], pre_a[idx]
-            ]
+            ]# obs, act, adv, ret, logp_old, state, mask, pre_action = batch
 
     def _discount_cumsum(self, x, discount):
         """

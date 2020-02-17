@@ -39,15 +39,17 @@ class PPO():
 
             for batch in batch_gen:
                 obs, act, adv, ret, logp_old, state, mask, pre_action = batch
+                
                 print('shape of obs, state, mask', obs.shape, state.shape, mask.shape) #shape of obs, state, mask torch.Size([128, 1, 128, 128]) torch.Size([128, 128]) torch.Size([128])
-                x = {"observation":obs,
+                
+                inputs = {"observation":obs,
                      "memory":{
                          "state":state,
                          "mask":mask,
                          "action":pre_action
                      }}
 
-                _, logp_a, ent, v, _ = self.actor_critic(x, action=act, rnn_step_size=self.rnn_steps)
+                _, logp_a, ent, v, _ = self.actor_critic(inputs, action=act, rnn_step_size=self.rnn_steps)
                 # PPO policy objective
                 ratio = (logp_a - logp_old).exp()
                 min_adv = torch.where(adv > 0, (1 + self.clip_param ) * adv, (1 - self.clip_param ) * adv)

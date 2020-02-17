@@ -39,19 +39,18 @@ class NavTask(BaseTask):
         self.target_id = None
 
     def transition_reward(self, event):
-        print(self.step_num)
         reward, done = self.movement_reward, False
 
         #calculate the distance:
         agent_pos = [event.metadata['agent']['position'][i] for i in event.metadata['agent']['position']]
-        target_object = event.get_object(self.target_id)
+        target_object = event.get_object(self.target_id) if self.target_id != None else event.metadata['objects'][0]
         target_pos = [target_object['position'][i] for i in target_object['position']]
 
         dis = np.sqrt(np.sum(np.square(np.array(agent_pos)-np.array(target_pos))))
         
-        print('dis',dis)
-        print(target_object['name'])
-        print(target_object['visible'])
+        # print('dis',dis)
+        # print(target_object['name'])
+        # print(target_object['visible'])
         
         if dis < 1.1 and target_object['visible']:
             reward += 10

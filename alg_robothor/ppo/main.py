@@ -1,17 +1,17 @@
 #! /usr/bin/env python
 # noted by chan
 #orion -v --debug hunt -c ./orion_config.yaml -n ppo_test ./algorithms/ppo/main.py --epochs~'fidelity(5000, 10000)' --lr~'uniform(1e-5, 1)'
-
+#orion -v --debug hunt -c ./orion_config.yaml -n nav_ppo ./alg_robothor/ppo/main.py --gamma~'uniform(.95,.9995)' --epochs~'fidelity(5000, 10000)' --lr~'uniform(1e-5, 1.0)'
 import os
 import torch
 import numpy as np
 from torch.multiprocessing import SimpleQueue, Process, Value, Event, Barrier
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
-from algorithms.ppo.core import ActorCritic, PPOBuffer, count_vars
-from algorithms.ppo.worker import worker
-from algorithms.ppo.learner import learner
-from gym_ai2thor.envs.ai2thor_env import AI2ThorEnv
+from alg_robothor.ppo.core import ActorCritic, PPOBuffer, count_vars
+from alg_robothor.ppo.worker import worker
+from alg_robothor.ppo.learner import learner
+from gym_robothor.envs.robothor_env import RoboThorEnv
 
 
 def train_ai2thor(model, args, rank=0, b=None):
@@ -41,10 +41,9 @@ def train_ai2thor(model, args, rank=0, b=None):
 
     processes = []
     # task_config_file = "config_files/multiMugTaskTrain.json"
-    task_config_file = "config_files/multiMugTaskTrain.json"
+    task_config_file = "config_files/NavTaskTrain.json"
     # start workers
     for worker_id in range(args.num_workers):
-        print('START>>>>>>>>>>>>>>>>')
         p = Process(target=worker, args=(worker_id, model, storage, ready_to_works[worker_id], queue, exit_flag, args.use_priors, task_config_file))
         p.start()
         processes.append(p)
@@ -77,7 +76,7 @@ def train_ai2thor(model, args, rank=0, b=None):
             dist.init_process_group(backend=dist_backend, init_method=dist_url, rank=rank, world_size=args.world_size)
             # Make model DistributedDataParallel
             model = DistributedDataParallel(model, device_ids=[rank], output_device=rank)
-    else: print('Distribution is not allowed')
+    else: print('Distribution Forbidden ~')
         
     learner(model, storage, train_params, ppo_params, ready_to_works, queue, exit_flag, rank, distributed, b)
 
@@ -92,32 +91,33 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--world-size', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=2048)
-    parser.add_argument('--num-workers', type=int, default=1)
-    parser.add_argument('--mini-batch-size', type=int, default=128)
-    parser.add_argument('--epochs', type=int, default=10000)
+    parser.add_argument('--steps', type=int, default=4)#4  #total number of steps across all processes per epoch in one world
+    parser.add_argument('--num-workers', type=int, default=1)#2
+    parser.add_argument('--mini-batch-size', type=int, default=4)#128
+    parser.add_argument('--epochs', type=int, default=1)#10000 orion
     parser.add_argument('--train-iters', type=int, default=10)
     parser.add_argument('--model-path', type=str, default=None)
 
     parser.add_argument('--state-size', type=int, default=128)
-    parser.add_argument('--rnn-steps', type=int, default=16)
-    parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--lr', type=float, default=3e-4)
+    parser.add_argument('--rnn-steps', type=int, default=4)#4
+    parser.add_argument('--gamma', type=float, default=0.99)# orion
+    parser.add_argument('--lr', type=float, default=3e-4)# orion
     parser.add_argument('--clip-param', type=float, default=0.2)
     parser.add_argument('--value_loss_coef', type=float, default=0.2)
     parser.add_argument('--entropy_coef', type=float, default=0.001)
     parser.add_argument('--max-kl', type=float, default=0.01)
     
     parser.add_argument('--use-priors', type=bool, default=False)
-    parser.add_argument('--use-attention', type=bool, default=True)
+    parser.add_argument('--use-attention', type=bool, default=False)
     parser.add_argument('--attention', type=str, default='CBAM')
 
     args = parser.parse_args()
     torch.multiprocessing.set_start_method('spawn')
 
     # get observation dimension
-    env = AI2ThorEnv(config_file="config_files/multiMugTaskTrain.json")
+    env = RoboThorEnv(config_file="config_files/NavTaskTrain.json")
     env.reset()
+    
     obs_dim = env.observation_space.shape
     # Share information about action space with policy architecture
     ac_kwargs = dict()
@@ -125,7 +125,9 @@ if __name__ == '__main__':
     ac_kwargs['state_size'] = args.state_size
     ac_kwargs['use_attention'] = args.use_attention
     ac_kwargs['attention'] = args.attention
+    
     env.close()
+
     # Main model
     print("Initialize Model...")
     # Construct Model
@@ -149,4 +151,5 @@ if __name__ == '__main__':
             print("process ", p.pid, " joined") 
     else:
         train_ai2thor(ac_model, args)
+    
     print("main exits")

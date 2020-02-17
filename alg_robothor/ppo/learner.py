@@ -1,13 +1,13 @@
 import os, time
 import torch
 import numpy as np
-from algorithms.ppo.ppo import PPO
+from alg_robothor.ppo.ppo import PPO
 
 import torch.distributed as dist
 from tensorboardX import SummaryWriter
 
 from orion.client import report_results
-
+from alg_robothor.utils.eval import evaluate_with_spl
 # from visdom import Visdom
 
 # vis = Visdom()
@@ -95,6 +95,7 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
 
         # train with batch
         model.train()
+        print('updating...')
         pi_loss, v_loss, kl, entropy = agent.update(rollout_storage, distributed)
         v_mean = rollout_storage.val_buf.mean()
         model.eval()
@@ -122,6 +123,7 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
             ret_sum = dist_sum(torch.tensor(ret_sum).to(device))
             steps_sum = dist_sum(torch.tensor(steps_sum).to(device))
             episode_count = dist_sum(torch.tensor(episode_count).to(device))
+        
         # Log info about epoch
         global_steps = (epoch + 1) * train_params["steps"] * train_params["world_size"]
         fps = global_steps * train_params["world_size"] / (time.time() - start_time)
@@ -153,9 +155,12 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
                 torch.save(model.state_dict(), f'model/ppo/model{epoch+1}.pt')
         print("finish statistics")
     
+    spl = evaluate_with_spl(model, rollout_storage)
+
+    print('>>>>>>>>>>>>>>>>>>>>> Reporting...')
     report_results([dict(
     name='validation_return',
     type='objective',
-    value=v_mean.cpu().numpy())])
+    value=1/(spl+1e-7))])
         
     print(f"learner with pid ({os.getpid()})  finished job")

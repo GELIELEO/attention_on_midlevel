@@ -38,7 +38,6 @@ class RoboThorEnv(gym.Env):
 
         # Loads config settings from file
         self.config = read_config(config_file, config_dict)
-        print(self.config)
         self.scene_id = self.config['scene_id']
         # Randomness settings
         self.np_random = None
@@ -185,6 +184,7 @@ def env_generator(split:str):
     
     for e in episodes:
         env.controller.initialization_parameters['robothorChallengeEpisodeId'] = e['id']
+        env.controller.initialization_parameters['shortest_path'] = e['shortest_path']
         env.controller.reset(e['scene'])
         
         env.task.target_id = e['object_id']
