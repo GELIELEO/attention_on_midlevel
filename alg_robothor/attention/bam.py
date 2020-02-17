@@ -17,12 +17,12 @@ class ChannelGate(nn.Module):
         gate_channels += [gate_channel]
         for i in range( len(gate_channels) - 2 ):
             self.gate_c.add_module( 'gate_c_fc_%d'%i, nn.Linear(gate_channels[i], gate_channels[i+1]) )
-            self.gate_c.add_module( 'gate_c_bn_%d'%(i+1), nn.BatchNorm1d(gate_channels[i+1]) )
+            self.gate_c.add_module( 'gate_c_bn_%d'%(i+1), nn.BatchNorm1d(gate_channels[i+1]) )  # this require its inputs has at least 2 batch 
             self.gate_c.add_module( 'gate_c_relu_%d'%(i+1), nn.ReLU() )
         self.gate_c.add_module( 'gate_c_fc_final', nn.Linear(gate_channels[-2], gate_channels[-1]) )
     def forward(self, in_tensor):
         avg_pool = F.avg_pool2d( in_tensor, in_tensor.size(2), stride=in_tensor.size(2) )
-        print('avg_pool', avg_pool.shape)
+        print('avg_pool', avg_pool.shape)#torch.Size([1, 3, 1, 1]), [2,24,1,1]
         return self.gate_c( avg_pool ).unsqueeze(2).unsqueeze(3).expand_as(in_tensor)
 
 class SpatialGate(nn.Module):

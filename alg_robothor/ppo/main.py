@@ -108,8 +108,8 @@ if __name__ == '__main__':
     parser.add_argument('--max-kl', type=float, default=0.01)
     
     parser.add_argument('--use-priors', type=bool, default=False)
-    parser.add_argument('--use-attention', type=bool, default=False)
-    parser.add_argument('--attention', type=str, default='CBAM')
+    parser.add_argument('--use-attention', type=bool, default=True)
+    parser.add_argument('--attention', type=str, default='BAM')
 
     args = parser.parse_args()
     torch.multiprocessing.set_start_method('spawn')

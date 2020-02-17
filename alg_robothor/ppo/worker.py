@@ -56,7 +56,9 @@ def worker(worker_id,
     # Wait for start job
     ready_to_work.wait()
 
-    for env in env_generator('training'):
+    policy.eval() # model is in training mode by default, worker uses its eval mode because some NN components have diffenrent working paradim in both mode 
+
+    for env in env_generator('train_valid'):
         print('using scene {}'.format(env.controller.initialization_parameters['robothorChallengeEpisodeId']))
         if exit_flag.value != 1:
             inputs = reset(env, state_shape, device)

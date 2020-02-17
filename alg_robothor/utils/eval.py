@@ -35,7 +35,7 @@ def evaluate_with_spl(model, storage):
     max_num_env = 2
 
     episode_results = []
-    for i, env in enumerate(env_generator('testing')):
+    for i, env in enumerate(env_generator('test_valid')):
         if i < max_num_env:
             print('Evaluating scene {}'.format(env.controller.initialization_parameters['robothorChallengeEpisodeId']))
             episode_result = dict(shortest_path=env.controller.initialization_parameters['shortest_path'], success=False, path=[])
