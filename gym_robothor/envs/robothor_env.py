@@ -38,24 +38,29 @@ class RoboThorEnv(gym.Env):
 
         # Loads config settings from file
         self.config = read_config(config_file, config_dict)
-        self.scene_id = self.config['scene_id']
         # Randomness settings
         self.np_random = None
         if seed:
             self.seed(seed)
 
+        # priors vision settings
         self.use_priors = self.config['use_priors']
-        
         if self.use_priors:
             self.priors = self.config['priors']
             self.mode = self.config['manual_mode']
             self.k = self.config['k_max_cover']
-            
+        
+        # changable params
+        self.scene = self.config['scene']
+        self.init_pos = None
+        self.init_ori = None
+
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # Action settings
         self.action_names = tuple(ALL_POSSIBLE_ACTIONS.copy())
         self.action_space = spaces.Discrete(len(self.action_names))
+        self.observation_space = None
        
 
         # Image settings
@@ -75,7 +80,7 @@ class RoboThorEnv(gym.Env):
         'agentType': 'stochastic', 'agentMode': 'bot', 'continuousMode': True, 'snapToGrid': False, 
         'applyActionNoise': True, 'renderDepthImage': False, 'renderClassImage': False, 'renderObjectImage': False
         '''
-        self.controller = ai2thor.controller.Controller(**self.config['initialize'])
+        self.controller = ai2thor.controller.Controller(width=self.config['width'], height=self.config['height'], **self.config['initialize'])
         
         if self.config.get('build_file_name'):
             # file must be in gym_ai2thor/build_files
@@ -94,7 +99,7 @@ class RoboThorEnv(gym.Env):
                                       '0 and {}!'.format(self.action_space.n))
         action_str = self.action_names[action]
 
-        visible_objects = [obj for obj in self.event.metadata['objects'] if obj['visible']]
+        # visible_objects = [obj for obj in self.event.metadata['objects'] if obj['visible']]
 
         # if/else statements below for dealing with up to 13 actions
         if action_str.startswith('Rotate'):
@@ -109,8 +114,13 @@ class RoboThorEnv(gym.Env):
         
         else:
             raise NotImplementedError('action_str: {} is not implemented'.format(action_str))
+        
+        
+        target_obj = self.event.get_object(self.task.target_id)
+        cur_pos = self.event.metadata['agent']['position']
+        tgt_pos = target_obj['position']
+        state_image = self.preprocess(self.event.frame, cur_pos, tgt_pos)
 
-        state_image = self.preprocess(self.event.frame)
         reward, done = self.task.transition_reward(self.event)
         
         if return_event:
@@ -120,7 +130,7 @@ class RoboThorEnv(gym.Env):
         
         return state_image, reward, done, info
 
-    def preprocess(self, img):
+    def preprocess(self, img, cur_pos, tgt_pos):
         """
         Compute image operations to generate state representation
         """
@@ -128,33 +138,66 @@ class RoboThorEnv(gym.Env):
         # input shape: width,  height, 3
         img = transform.resize(img, self.config['resolution'], mode='reflect')
         img = img.astype(np.float32)
-
+        
         if self.config['grayscale']:
-            img = rgb2gray(img) #3 dims  1 channel
+            img = rgb2gray(img) 
             img = np.moveaxis(img, 2, 0)
+            img = torch.from_numpy(img)#3 dims  1 channel, tensor
+            img = img / 255.
 
         elif self.use_priors:
             img = np.moveaxis(img, 2, 0)
-            img = torch.Tensor(img).unsqueeze(0).to(self.device)
+            img = torch.Tensor(img).unsqueeze(0)
 
             if self.priors == 'manual':
                 img = multi_representation_transform(img/255., self.mode)
             elif self.priors == 'max_cover':
                 img = max_coverage_featureset_transform(img/255., self.k)
             else: raise NotImplementedError
-            img = img.squeeze(0)# 3 dims, tensor, cuda if have
+            img = img.squeeze(0)# 3 dims, tensor
 
         else:
-            img = np.moveaxis(img, 2, 0)# 3 dims, 3 channels
+            img = torch.from_numpy(np.moveaxis(img, 2, 0))# 3 dims, 3 channels, tensor
+            img = img / 255.
         
+        # all to be tensor.
+        cur_pos = torch.tensor([cur_pos['x'], cur_pos['z']])
+        tgt_pos = torch.tensor([tgt_pos['x'], tgt_pos['z']])
+        vector = cur_pos - tgt_pos
+
+        fake_img = torch.stack([i.expand_as(img[0]) for i in vector])
+        # print('fake', fake_img) # 3 dims
+        
+        img = torch.cat([img, fake_img], axis=0).to(self.device) #  cuda if have
+        # print(img[24:26])
+
         return img
 
     def reset(self):
         print('Resetting environment and starting new episode')
+        # resetting scene
+        self.event = self.controller.reset(scene=self.scene)
+
+        #resetting pos & ori
+        assert self.init_pos != None and self.init_ori != None
+        teleport_action = dict(action='TeleportFull')
+        teleport_action.update(self.init_pos)
+        self.controller.step(action=teleport_action)
+        self.controller.step(action=dict(action='Rotate', rotation=dict(y=self.init_ori, horizon=0.0)))
+        
+        # initialize action must be evolved after changing the pos and ori, cannot reset anymore here!!!
         self.event = self.controller.step(dict(action='Initialize', **self.config['initialize']))
+        
+        # resetting task
         self.task.reset()
 
-        state = self.preprocess(self.event.frame)
+        # state preprocessing
+        assert self.task.target_id != None
+        target_obj = self.event.get_object(self.task.target_id)
+        cur_pos = self.event.metadata['agent']['position']
+        tgt_pos = target_obj['position']
+        self.task.pre_distance = np.sqrt(np.sum(np.square(np.array([cur_pos['x'], cur_pos['z']])-np.array([tgt_pos['x'], tgt_pos['z']]))))
+        state = self.preprocess(self.event.frame, cur_pos, tgt_pos)
         
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=(state.shape[0], state.shape[1], state.shape[2]),
@@ -185,14 +228,12 @@ def env_generator(split:str):
     for e in episodes:
         env.controller.initialization_parameters['robothorChallengeEpisodeId'] = e['id']
         env.controller.initialization_parameters['shortest_path'] = e['shortest_path']
-        env.controller.reset(e['scene'])
         
+        env.scene = e['scene']
+        env.init_pos = e['initial_position']
+        env.init_ori = e['initial_orientation']
         env.task.target_id = e['object_id']
 
-        teleport_action = dict(action='TeleportFull')
-        teleport_action.update(e['initial_position'])
-        env.controller.step(action=teleport_action)
-        env.controller.step(action=dict(action='Rotate', rotation=dict(y=e['initial_orientation'], horizon=0.0)))
         yield env
 
 

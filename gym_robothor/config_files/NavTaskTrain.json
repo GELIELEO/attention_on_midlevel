@@ -1,6 +1,4 @@
 {
-    
-    "scene_id": "FloorPlan_Train1_1",
     "use_priors": false,
     "priors": "max_cover",
     "k_max_cover": 3,
@@ -11,15 +9,16 @@
     "build_file_name": false,
 
     "movement_reward":-0.01,
-    "max_episode_length":500,
+    "max_episode_length":250,
     "task": {
         "task_name": "NavTask"
     },
-
-    "initialize":{
+    
     "scene": "FloorPlan_Train1_1",
     "width": 640,
     "height": 640,
+
+    "initialize":{
     "cameraY": 0.675,
     "fieldOfView": 90.0,
     "rotateStepDegrees": 30,
@@ -33,7 +32,6 @@
     "renderDepthImage": false,
     "renderClassImage": false,
     "renderObjectImage": false
-
     }
 
 }

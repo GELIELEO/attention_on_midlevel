@@ -15,31 +15,27 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 if __name__ == '__main__':
-    config_dict = {'max_episode_length': 2000, 'use_priors': False, "priors": "max_cover"}
+    config_dict = {'max_episode_length': 2000, 'use_priors': True, "priors": "max_cover", 'k_max_cover':4}
     env = RoboThorEnv(config_dict=config_dict)
     max_episode_length = env.task.max_episode_length
-    cbam = BAM(gate_channels=3, reduction_ratio=1).cuda()
+    cbam = BAM(gate_channels=8*config_dict['k_max_cover'], reduction_ratio=1).cuda()
     cbam.eval()
     for episode in range(N_EPISODES):
         state = env.reset()
-        pre_state = state
+        
         for step_num in range(max_episode_length):
             action = env.action_space.sample()
-            state, reward, done, _ = env.step(action, return_event=False)
-            
-            print('input shape',state.shape)
 
             start_time = time.time()
-
+            state, reward, done, _ = env.step(action, return_event=False)
+            print('>>>>>>>> used time', time.time() - start_time)
+            
+            print('input shape',state.shape)
             if torch.is_tensor(state): # priors
-                input = torch.cat([state.unsqueeze(0), pre_state.unsqueeze(0)],dim=0)
-                state_attention = cbam(input)
+                state_attention = cbam(state.unsqueeze(0))
             else: # raw
                 state_attention = cbam(torch.from_numpy(state).to(device).unsqueeze(0))
             
-            print('>>>>>>>> used time', time.time() - start_time)
-
-            pre_state = state
             
             # print('state',state.shape)
             # print('state_priors',state_priors.shape) # [1, 8, 19, 19]

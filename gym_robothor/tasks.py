@@ -36,31 +36,39 @@ class BaseTask:
 class NavTask(BaseTask):
     def __init__(self, **kwargs):
         super(NavTask, self).__init__(kwargs)
-        self.target_id = None
+        self.target_id = None # use id because target_obj is just a state and it must be updated as every time step
+        self.pre_distance = 0
+
 
     def transition_reward(self, event):
         reward, done = self.movement_reward, False
 
         #calculate the distance:
-        agent_pos = [event.metadata['agent']['position'][i] for i in event.metadata['agent']['position']]
-        target_object = event.get_object(self.target_id) if self.target_id != None else event.metadata['objects'][0]
-        target_pos = [target_object['position'][i] for i in target_object['position']]
+        assert self.target_id != None
+        target_obj = event.get_object(self.target_id)
+        agent_pos = [event.metadata['agent']['position']['x'], event.metadata['agent']['position']['z']]
+        target_pos = [target_obj['position']['x'], target_obj['position']['z']]
 
         dis = np.sqrt(np.sum(np.square(np.array(agent_pos)-np.array(target_pos))))
         
-        # print('dis',dis)
-        # print(target_object['name'])
-        # print(target_object['visible'])
+        reward += (self.pre_distance - dis)
+        # print('distance',(self.pre_distance-dis))
         
-        if dis < 1.1 and target_object['visible']:
+        # print(self.target_obj['name'])
+        # print(target_obj['visible'])
+        
+        if dis < 1.1 and target_obj['visible']:
             reward += 10
+            done = True
             print('>>>>>>>>>>>>>>>> Reached destination')
         
         if self.max_episode_length and self.step_num >= self.max_episode_length:
             print('Reached maximum episode length: {}'.format(self.step_num))
+            print('{} meters from destination'.format(dis))
             done = True
         
         self.step_num += 1
+        self.pre_distance = dis
 
         return reward, done
 

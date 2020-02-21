@@ -161,6 +161,6 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
     report_results([dict(
     name='validation_return',
     type='objective',
-    value=1/(spl+1e-7))])
+    value=1/(spl+1e-1))])
         
     print(f"learner with pid ({os.getpid()})  finished job")

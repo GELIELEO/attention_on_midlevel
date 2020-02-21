@@ -8,10 +8,7 @@ def reset(env, state_shape, device):
     state = env.reset()
     mask_t = torch.tensor(0., dtype=torch.float32).to(device)
     prev_a = torch.tensor(0, dtype=torch.long).to(device)
-    if not torch.is_tensor(state):
-        obs_t = torch.Tensor(state / 255.).to(device)
-    else:
-        obs_t = state
+    obs_t = state
     state_t = torch.zeros(state_shape, dtype=torch.float32).to(device)
     inputs = {"observation": obs_t,
          "memory": {
@@ -29,7 +26,6 @@ def worker(worker_id,
            ready_to_work,
            queue,
            exit_flag,
-           use_priors = False,
            task_config_file="config_files/config_example.json"):
     '''
     Worker function to collect experience based on policy and store the experience in storage
@@ -83,13 +79,9 @@ def worker(worker_id,
                                 logp_t,
                                 inputs["memory"]["state"],
                                 inputs["memory"]["mask"])
-                # prepare inputs for next step
-                if use_priors:
-                    inputs["observation"] = state
-                else:
-                    inputs["observation"] = torch.Tensor(state/255.).to(device) # 128x128 -> 1x128x128
-                # print('inputs["observation"]', inputs["observation"].shape)
                 
+                # prepare inputs for next step
+                inputs["observation"] = state                
                 inputs["memory"]["state"] = state_t
                 inputs["memory"]["mask"] = torch.tensor((done+1)%2, dtype=torch.float32).to(device)
                 inputs["memory"]["action"] = a_t

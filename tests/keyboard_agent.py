@@ -89,19 +89,33 @@ def run_multi():
 		while True:
 			key = click.getchar()
 			if key =='a':  # Rotate Left
-				state = controller.step(3)
+				state, reward, done, _ = controller.step(3)
+				if done:
+					controller.reset()
 			elif key =='d':
-				state = controller.step(2)
+				state, reward, done, _  = controller.step(2)
+				if done:
+					controller.reset()
 			elif key =='w':
-				state = controller.step(0)
+				state, reward, done, _  = controller.step(0)
+				if done:
+					controller.reset()
 			elif key =='s':
-				state = controller.step(1)
+				state, reward, done, _  = controller.step(1)
+				if done:
+					controller.reset()
 			elif key =='z':
-				state = controller.step(5)
+				state, reward, done, _  = controller.step(5)
+				if done:
+					controller.reset()
 			elif key =='x':
-				state = controller.step(4)
+				state, reward, done, _  = controller.step(4)
+				if done:
+					controller.reset()
 			elif key =='c':
-				state = controller.step(6)
+				state, reward, done, _  = controller.step(6)
+				if done:
+					controller.reset()
 			elif key =='v':
 				controller.render()
 			elif key =='q':
@@ -112,6 +126,8 @@ def run_multi():
 				controller.controller.reset('FloorPlan{}'.format(scene))
 			else:
 				print("Key not supported! Try a, d, w, s, q, r.")
+
+			# print(done)
 
 
 

@@ -40,11 +40,10 @@ def train_ai2thor(model, args, rank=0, b=None):
     queue = SimpleQueue()
 
     processes = []
-    # task_config_file = "config_files/multiMugTaskTrain.json"
     task_config_file = "config_files/NavTaskTrain.json"
     # start workers
     for worker_id in range(args.num_workers):
-        p = Process(target=worker, args=(worker_id, model, storage, ready_to_works[worker_id], queue, exit_flag, args.use_priors, task_config_file))
+        p = Process(target=worker, args=(worker_id, model, storage, ready_to_works[worker_id], queue, exit_flag, task_config_file))
         p.start()
         processes.append(p)
 
@@ -91,24 +90,23 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--world-size', type=int, default=1)
-    parser.add_argument('--steps', type=int, default=4)#4  #total number of steps across all processes per epoch in one world
-    parser.add_argument('--num-workers', type=int, default=1)#2
-    parser.add_argument('--mini-batch-size', type=int, default=4)#128
-    parser.add_argument('--epochs', type=int, default=1)#10000 orion
+    parser.add_argument('--steps', type=int, default=512)#4  #total number of steps across all processes per epoch in one world
+    parser.add_argument('--num-workers', type=int, default=2)#1 2
+    parser.add_argument('--mini-batch-size', type=int, default=128)#4 128
+    parser.add_argument('--epochs', type=int, default=10000)#10000 orion
     parser.add_argument('--train-iters', type=int, default=10)
     parser.add_argument('--model-path', type=str, default=None)
 
     parser.add_argument('--state-size', type=int, default=128)
-    parser.add_argument('--rnn-steps', type=int, default=4)#4
-    parser.add_argument('--gamma', type=float, default=0.99)# orion
-    parser.add_argument('--lr', type=float, default=3e-4)# orion
+    parser.add_argument('--rnn-steps', type=int, default=16)#4 16
+    parser.add_argument('--gamma', type=float, default=0.9728)# orion 0.99 0.9728
+    parser.add_argument('--lr', type=float, default=0.0019)# orion 0.0019 3e-4
     parser.add_argument('--clip-param', type=float, default=0.2)
     parser.add_argument('--value_loss_coef', type=float, default=0.2)
     parser.add_argument('--entropy_coef', type=float, default=0.001)
     parser.add_argument('--max-kl', type=float, default=0.01)
     
-    parser.add_argument('--use-priors', type=bool, default=False)
-    parser.add_argument('--use-attention', type=bool, default=True)
+    parser.add_argument('--use-attention', type=bool, default=False)
     parser.add_argument('--attention', type=str, default='BAM')
 
     args = parser.parse_args()
@@ -116,6 +114,9 @@ if __name__ == '__main__':
 
     # get observation dimension
     env = RoboThorEnv(config_file="config_files/NavTaskTrain.json")
+    env.init_pos = {'x':1, 'y':0, 'z':0}
+    env.init_ori = {'x':1, 'y':0, 'z':0}
+    env.task.target_id = 'Apple|+01.98|+00.77|-01.75'
     env.reset()
     
     obs_dim = env.observation_space.shape
