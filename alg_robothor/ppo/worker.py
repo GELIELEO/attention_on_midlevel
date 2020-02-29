@@ -5,12 +5,12 @@ from gym_robothor.envs.robothor_env import RoboThorEnv, env_generator
 
 
 def reset(env, state_shape, device):
-    state = env.reset()
+    state, bear = env.reset()
     mask_t = torch.tensor(0., dtype=torch.float32).to(device)
     prev_a = torch.tensor(0, dtype=torch.long).to(device)
     obs_t = state
     state_t = torch.zeros(state_shape, dtype=torch.float32).to(device)
-    inputs = {"observation": obs_t,
+    inputs = {"observation": obs_t, "bear":bear,
          "memory": {
              "state": state_t,
              "mask": mask_t,
@@ -54,8 +54,7 @@ def worker(worker_id,
 
     policy.eval() # model is in training mode by default, worker uses its eval mode because some NN components have diffenrent working paradim in both mode 
 
-    for env in env_generator('train_valid'):
-        print('using scene {}'.format(env.controller.initialization_parameters['robothorChallengeEpisodeId']))
+    for env in env_generator('train_valid_'):
         if exit_flag.value != 1:
             inputs = reset(env, state_shape, device)
             for i in range(steps_per_epoch):
@@ -63,7 +62,7 @@ def worker(worker_id,
                     a_t, logp_t, _, v_t, state_t = policy(inputs)
             
                 # interact with environment
-                state, reward, done, _ = env.step(a_t.item())
+                state, reward, done, info = env.step(a_t.item())
                 # print('state.shape', state.shape, type(state.shape))
                 
                 reward_sum += reward  # accumulate reward within one rollout.
@@ -73,6 +72,7 @@ def worker(worker_id,
                 # save experience
                 storage.store(worker_id,
                                 inputs["observation"],
+                                inputs["bear"],
                                 a_t,
                                 r_t,
                                 v_t,
@@ -81,7 +81,8 @@ def worker(worker_id,
                                 inputs["memory"]["mask"])
                 
                 # prepare inputs for next step
-                inputs["observation"] = state                
+                inputs["observation"] = state   
+                inputs["bear"] = info            
                 inputs["memory"]["state"] = state_t
                 inputs["memory"]["mask"] = torch.tensor((done+1)%2, dtype=torch.float32).to(device)
                 inputs["memory"]["action"] = a_t

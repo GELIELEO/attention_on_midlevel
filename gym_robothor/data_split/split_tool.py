@@ -22,7 +22,7 @@ class Split_tool:
         self.split_valid = []
         self.split_loss = []
         self.controller = ai2thor.controller.Controller(agentMode='bot')
-        with open('gym_robothor/data_split/testing.json') as f:
+        with open('gym_robothor/data_split/val.json') as f:
             self.episodes = json.loads(f.read())
         
         self.loss = 0
@@ -63,10 +63,10 @@ class Split_tool:
                 # print(path, "<<<<<<<<<<<<<", dis)
                 # time.sleep(5)
 
-        with open('test_valid.json','w') as f:
+        with open('test_valid_.json','w') as f:
             json.dump(self.split_valid, f, indent=4)
         
-        with open('test_loss.json','w') as f:
+        with open('test_loss_.json','w') as f:
             json.dump(self.split_loss, f, indent=4)
 
         print('Result: Valid:{}, Loss:{}, rate:{}'.format(self.valid, self.loss, self.valid/(self.valid+self.loss)))
@@ -78,3 +78,6 @@ if __name__ == '__main__':
 
 # Result: Valid:19058, Loss:6016, rate:0.7600701922309963 training
 # Result: Valid:4127, Loss:2163, rate:0.656120826709062
+
+# Result: Valid:27330, Loss:265, rate:0.9903968110164885
+# Result: Valid:5645, Loss:471, rate:0.9229888816219751

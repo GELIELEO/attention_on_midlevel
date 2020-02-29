@@ -83,6 +83,7 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
             print(f'Learner rank:{rank} wait')
             b.wait()
         print("Start training")
+        
         # normalize advantage
         # if distributed:
         #     mean = rollout_storage.adv_buf.mean()
@@ -126,7 +127,7 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
         
         # Log info about epoch
         global_steps = (epoch + 1) * train_params["steps"] * train_params["world_size"]
-        fps = global_steps * train_params["world_size"] / (time.time() - start_time)
+        fps = global_steps / (time.time() - start_time)
         logger.log_info(f"Epoch [{epoch}] avg. FPS:[{fps:.2f}]")
 
         logger.add_scalar("KL", kl, global_steps)
@@ -161,6 +162,6 @@ def learner(model, rollout_storage, train_params, ppo_params, ready_to_works, qu
     report_results([dict(
     name='validation_return',
     type='objective',
-    value=1/(spl+1e-1))])
+    value= -spl)])
         
     print(f"learner with pid ({os.getpid()})  finished job")

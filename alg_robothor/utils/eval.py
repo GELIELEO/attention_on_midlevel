@@ -34,10 +34,9 @@ def evaluate_with_spl(model, storage):
 
     episode_results = []
     reward_list = []
-    for i, env in enumerate(env_generator('test_valid')):
+    for i, env in enumerate(env_generator('test_valid_')):
         if i < max_num_env:
             if standard == 'length':
-                print('Evaluating scene {}'.format(env.controller.initialization_parameters['robothorChallengeEpisodeId']))
                 episode_result = dict(shortest_path=env.controller.initialization_parameters['shortest_path'], success=False, path=[])
                 episode_results.append(episode_result)
                 episode_result['path'].append(env.controller.last_event.metadata['agent']['position'])
@@ -89,3 +88,56 @@ def evaluate_with_spl(model, storage):
         return np.mean(reward_list)
 
 
+'''
+ {
+        "difficulty": "medium",
+        "id": "Train_1_1_Apple_17",
+        "initial_orientation": 90,
+        "initial_position": {
+            "x": 1.75,
+            "y": 0.9009997,
+            "z": -4.25
+        },
+        "object_id": "Apple|+01.98|+00.77|-01.75",
+        "object_type": "Apple",
+        "scene": "FloorPlan_Train1_1",
+        "shortest_path": [
+            {
+                "x": 1.75,
+                "y": 0.0103442669,
+                "z": -4.25
+            },
+            {
+                "x": 2.85833335,
+                "y": 0.0103442669,
+                "z": -3.208334
+            },
+            {
+                "x": 4.025,
+                "y": 0.0103442669,
+                "z": -2.68333435
+            },
+            {
+                "x": 4.141667,
+                "y": 0.0103442669,
+                "z": -2.56666756
+            },
+            {
+                "x": 4.025,
+                "y": 0.0103442669,
+                "z": -2.27500057
+            },
+            {
+                "x": 3.0,
+                "y": 0.0103442669,
+                "z": -2.0
+            }
+        ],
+        "shortest_path_length": 4.340735893219212,
+        "target_position": {
+            "x": 1.979,
+            "y": 0.7714,
+            "z": -1.753
+        }
+    },
+    '''

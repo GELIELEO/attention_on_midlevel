@@ -183,7 +183,7 @@ class ActorCritic(nn.Module):
                  attention=None):
         super(ActorCritic, self).__init__()
 
-        self.obs_shape =obs_shape
+        self.obs_shape = obs_shape
         ch, w, _ = obs_shape
         self.use_attention = use_attention
         self.attention = attention
@@ -216,6 +216,7 @@ class ActorCritic(nn.Module):
 
     def forward(self, inputs, action=None, rnn_step_size=1):
         current_obs = inputs["observation"]
+        current_bear = inputs["bear"]
         # print('shape of current obs', current_obs.shape, type(current_obs))
         pre_action = inputs["memory"]["action"]
         pre_state = inputs["memory"]["state"]
@@ -226,11 +227,16 @@ class ActorCritic(nn.Module):
             pre_action = pre_action.unsqueeze(0)
             state_mask = state_mask.unsqueeze(0)
             pre_state = pre_state.unsqueeze(0)
+            current_bear = current_bear.unsqueeze(0)
         
         if self.use_attention == True:
             current_obs = self.AM(current_obs)
 
-        states = self.feature_base(current_obs, pre_action, pre_state, state_mask, rnn_step_size=rnn_step_size)
+        states = self.feature_base(current_obs, pre_action, pre_state, state_mask, rnn_step_size=rnn_step_size) # [batch, 128]
+        bearing = current_bear.repeat(1, states.shape[1]//current_bear.shape[1])
+
+        states = states + bearing
+
         a, logp_a, ent = self.policy(states, action)
         v = self.value_function(states)
 
@@ -245,6 +251,7 @@ class PPOBuffer:
 
     def __init__(self, obs_dim, size, num_envs, memory_size, gamma=0.99, lam=0.95, device=torch.device('cpu')):
         self.obs_buf = torch.zeros((size, *obs_dim), dtype=torch.float32).to(device)
+        self.bear_buf = torch.zeros((size, 2), dtype=torch.float32).to(device)
         self.act_buf = torch.zeros(size, dtype=torch.long).to(device)
         self.adv_buf = torch.zeros(size, dtype=torch.float32).to(device)
         self.rew_buf = torch.zeros(size, dtype=torch.float32).to(device)
@@ -266,6 +273,7 @@ class PPOBuffer:
 
     def share_memory(self):
         self.obs_buf.share_memory_()
+        self.bear_buf.share_memory_()
         self.act_buf.share_memory_()
         self.adv_buf.share_memory_()
         self.rew_buf.share_memory_()
@@ -277,13 +285,14 @@ class PPOBuffer:
         self.ptr.share_memory_()
         self.path_start_idx.share_memory_()
 
-    def store(self, envid, obs, act, rew, val, logp, h, mask):
+    def store(self, envid, obs, bear, act, rew, val, logp, h, mask):
         """
         Append one timestep of agent-environment interaction to the buffer.
         """
         assert self.ptr[envid].item()  < self.block_size  # buffer has to have room so you can store
         ptr = self.ptr[envid].item()+ envid * self.block_size
         self.obs_buf[ptr].copy_(obs)
+        self.bear_buf[ptr].copy_(bear)
         self.act_buf[ptr].copy_(act)
         self.rew_buf[ptr].copy_(rew)
         self.val_buf[ptr].copy_(val)
@@ -352,7 +361,7 @@ class PPOBuffer:
         for block in batch_sampler:
             idx = indice[block].view(-1)
             yield [
-                self.obs_buf[idx], self.act_buf[idx], self.adv_buf[idx], self.ret_buf[idx],
+                self.obs_buf[idx], self.bear_buf[idx], self.act_buf[idx], self.adv_buf[idx], self.ret_buf[idx],
                 self.logp_buf[idx], self.h_buf[idx], self.mask_buf[idx], pre_a[idx]
             ]# obs, act, adv, ret, logp_old, state, mask, pre_action = batch
 

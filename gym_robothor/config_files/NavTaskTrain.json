@@ -9,7 +9,7 @@
     "build_file_name": false,
 
     "movement_reward":-0.01,
-    "max_episode_length":250,
+    "max_episode_length":1024,
     "task": {
         "task_name": "NavTask"
     },
@@ -21,14 +21,15 @@
     "initialize":{
     "cameraY": 0.675,
     "fieldOfView": 90.0,
-    "rotateStepDegrees": 30,
+    "rotateStepDegrees": 10,
     "visibilityDistance": 1.0,
-    "gridSize": 0.25,
     "agentType": "stochastic",
     "agentMode": "bot",
-    "continuousMode": true,
+
+    "gridSize": 0.25,
+    "continuousMode": false,
     "snapToGrid": false,
-    "applyActionNoise": true,
+    "applyActionNoise": false,
     "renderDepthImage": false,
     "renderClassImage": false,
     "renderObjectImage": false

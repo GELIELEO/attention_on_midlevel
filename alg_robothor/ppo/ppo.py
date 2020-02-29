@@ -38,11 +38,11 @@ class PPO():
             kl_sum, ent_sum, pi_loss_sum, v_loss_sum = [torch.tensor(0.0).to(device) for _ in range(4)]
 
             for batch in batch_gen:
-                obs, act, adv, ret, logp_old, state, mask, pre_action = batch
+                obs, bear, act, adv, ret, logp_old, state, mask, pre_action = batch
                 
-                print('shape of obs, state, mask', obs.shape, state.shape, mask.shape) #shape of obs, state, mask torch.Size([128, 1, 128, 128]) torch.Size([128, 128]) torch.Size([128])
+                # print('shape of obs, state, mask', obs.shape, state.shape, mask.shape) #shape of obs, state, mask torch.Size([128, 1, 128, 128]) torch.Size([128, 128]) torch.Size([128])
                 
-                inputs = {"observation":obs,
+                inputs = {"observation":obs, "bear": bear,
                      "memory":{
                          "state":state,
                          "mask":mask,

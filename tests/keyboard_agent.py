@@ -84,38 +84,38 @@ def run_single(file_name=None):
 
 
 def run_multi():
-	for controller in env_generator('training'):
+	for controller in env_generator('train_valid_'):
 		controller.reset()
 		while True:
 			key = click.getchar()
 			if key =='a':  # Rotate Left
-				state, reward, done, _ = controller.step(3)
+				state, reward, done, _ = controller.step(1, return_event=True)
 				if done:
 					controller.reset()
 			elif key =='d':
-				state, reward, done, _  = controller.step(2)
+				state, reward, done, _  = controller.step(4, return_event=True)
 				if done:
 					controller.reset()
 			elif key =='w':
-				state, reward, done, _  = controller.step(0)
+				state, reward, done, _  = controller.step(2, return_event=True)
 				if done:
 					controller.reset()
 			elif key =='s':
-				state, reward, done, _  = controller.step(1)
+				state, reward, done, _  = controller.step(3, return_event=True)
 				if done:
 					controller.reset()
 			elif key =='z':
-				state, reward, done, _  = controller.step(5)
+				state, reward, done, _  = controller.step(0, return_event=True)
 				if done:
 					controller.reset()
 			elif key =='x':
-				state, reward, done, _  = controller.step(4)
+				state, reward, done, _  = controller.step(5, return_event=True)
 				if done:
 					controller.reset()
-			elif key =='c':
-				state, reward, done, _  = controller.step(6)
-				if done:
-					controller.reset()
+			# elif key =='c':
+			# 	state, reward, done, _  = controller.step(3, return_event=True)
+			# 	if done:
+			# 		controller.reset()
 			elif key =='v':
 				controller.render()
 			elif key =='q':
@@ -127,7 +127,9 @@ def run_multi():
 			else:
 				print("Key not supported! Try a, d, w, s, q, r.")
 
-			# print(done)
+			# print(_.metadata['collided'])
+			# print(_.metadata['lastActionSuccess'])
+			# print(_.metadata['agent'])
 
 
 

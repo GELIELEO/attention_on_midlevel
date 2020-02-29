@@ -52,13 +52,18 @@ class NavTask(BaseTask):
         dis = np.sqrt(np.sum(np.square(np.array(agent_pos)-np.array(target_pos))))
         
         reward += (self.pre_distance - dis)
+
         # print('distance',(self.pre_distance-dis))
-        
-        # print(self.target_obj['name'])
+        # print(target_obj['name'])
         # print(target_obj['visible'])
-        
+
+        # collision
+        if event.metadata['lastActionSuccess'] == False:
+            reward -= 5.0 # this should be large, so that make the movement reward more worthwhile.
+
+        # reach destination
         if dis < 1.1 and target_obj['visible']:
-            reward += 10
+            reward += 10.0
             done = True
             print('>>>>>>>>>>>>>>>> Reached destination')
         
@@ -66,6 +71,8 @@ class NavTask(BaseTask):
             print('Reached maximum episode length: {}'.format(self.step_num))
             print('{} meters from destination'.format(dis))
             done = True
+        
+        # print('reward', reward)
         
         self.step_num += 1
         self.pre_distance = dis

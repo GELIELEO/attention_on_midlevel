@@ -21,8 +21,13 @@ import torch
 from visualpriors.transforms import multi_representation_transform
 from visualpriors.transforms import max_coverage_featureset_transform
 import json
+import cv2
+import math
+import random
 
-ALL_POSSIBLE_ACTIONS = ['MoveAhead', 'MoveBack', 'RotateRight', 'RotateLeft', 'LookUp', 'LookDown', 'Stop']
+ALL_POSSIBLE_ACTIONS = ['LookUp', 'RotateLeft', 'MoveAhead', 'MoveBack', 'RotateRight', 'LookDown']
+# ALL_POSSIBLE_ACTIONS = ['LookUp', 'RotateLeft', 'MoveAhead', 'RotateRight', 'LookDown']
+
 
 class RoboThorEnv(gym.Env):
     """
@@ -118,19 +123,21 @@ class RoboThorEnv(gym.Env):
         
         target_obj = self.event.get_object(self.task.target_id)
         cur_pos = self.event.metadata['agent']['position']
+        cur_ori = self.event.metadata['agent']['rotation']
         tgt_pos = target_obj['position']
-        state_image = self.preprocess(self.event.frame, cur_pos, tgt_pos)
+        state_image, bear = self.preprocess(self.event.frame, cur_pos, cur_ori, tgt_pos)
 
         reward, done = self.task.transition_reward(self.event)
         
         if return_event:
-            info = self.event
+            info = [self.event, bear]
         else:
-            info = {}
+            info = bear
         
         return state_image, reward, done, info
 
-    def preprocess(self, img, cur_pos, tgt_pos):
+    
+    def preprocess(self, img, cur_pos, cur_ori, tgt_pos):
         """
         Compute image operations to generate state representation
         """
@@ -138,40 +145,84 @@ class RoboThorEnv(gym.Env):
         # input shape: width,  height, 3
         img = transform.resize(img, self.config['resolution'], mode='reflect')
         img = img.astype(np.float32)
+        # cv2.imshow('img',img)
+        # cv2.waitKey(1)
+
         
         if self.config['grayscale']:
             img = rgb2gray(img) 
             img = np.moveaxis(img, 2, 0)
-            img = torch.from_numpy(img)#3 dims  1 channel, tensor
-            img = img / 255.
+            img = torch.from_numpy(img).float()#3 dims  1 channel, tensor
+            # img = img / 255. # already done in ai2thor
 
         elif self.use_priors:
             img = np.moveaxis(img, 2, 0)
             img = torch.Tensor(img).unsqueeze(0)
 
             if self.priors == 'manual':
-                img = multi_representation_transform(img/255., self.mode)
+                # img = multi_representation_transform(img/255., self.mode)
+                img = multi_representation_transform(img, self.mode)
             elif self.priors == 'max_cover':
-                img = max_coverage_featureset_transform(img/255., self.k)
+                # img = max_coverage_featureset_transform(img/255., self.k)
+                img = max_coverage_featureset_transform(img, self.k)
             else: raise NotImplementedError
             img = img.squeeze(0)# 3 dims, tensor
 
         else:
             img = torch.from_numpy(np.moveaxis(img, 2, 0))# 3 dims, 3 channels, tensor
-            img = img / 255.
+            # img = img / 255. # already done in ai2thor
+        # print(img)
         
         # all to be tensor.
         cur_pos = torch.tensor([cur_pos['x'], cur_pos['z']])
         tgt_pos = torch.tensor([tgt_pos['x'], tgt_pos['z']])
-        vector = cur_pos - tgt_pos
+        cur_ori = torch.tensor([cur_ori['y']])
+        vector = (tgt_pos - cur_pos)
+        dir = math.atan2(vector[1], vector[0])/math.pi*180
+        
+        # -180 ~ 180
+        # cur_ori = -cur_ori if cur_ori<180 else 360-cur_ori
+        # splm_ori = cur_ori-180 if cur_ori>0 else cur_ori+180
+        # dir = dir
+        
 
-        fake_img = torch.stack([i.expand_as(img[0]) for i in vector])
+        # 0 ~ 360
+        cur_ori = 360 - cur_ori
+        splm_ori = cur_ori + 180 if cur_ori<180 else cur_ori-180
+        # print(cur_ori, splm_ori)
+        dir = 360+dir if dir < 0 else dir
+        # print(dir)
+
+        if splm_ori > cur_ori:
+            if dir > cur_ori and dir < splm_ori:# left
+                angle = dir-cur_ori
+            elif dir < cur_ori: # right
+                angle = dir-cur_ori
+            else:
+                angle = -(360-dir+cur_ori)
+        else:
+            if dir > splm_ori and dir < cur_ori:# right
+                angle = dir-cur_ori
+            elif dir < splm_ori:#left
+                angle = 360-cur_ori+dir
+            else:
+                angle= dir-cur_ori
+
+        # print(angle)
+
+        dis = torch.tensor([np.sqrt(np.sum(np.square(np.array(cur_pos)-np.array(tgt_pos))))])
+        
+        bear = torch.cat([dis/8.0, angle/360.0])
+        bear = bear.to(self.device)
+        # print(bear)
+        '''
+        fake_img = torch.stack([i.expand_as(img[0]) for i in bear])
         # print('fake', fake_img) # 3 dims
         
         img = torch.cat([img, fake_img], axis=0).to(self.device) #  cuda if have
-        # print(img[24:26])
-
-        return img
+        # print(img.shape)
+        '''
+        return img, bear
 
     def reset(self):
         print('Resetting environment and starting new episode')
@@ -195,14 +246,15 @@ class RoboThorEnv(gym.Env):
         assert self.task.target_id != None
         target_obj = self.event.get_object(self.task.target_id)
         cur_pos = self.event.metadata['agent']['position']
+        cur_ori = self.event.metadata['agent']['rotation']
         tgt_pos = target_obj['position']
         self.task.pre_distance = np.sqrt(np.sum(np.square(np.array([cur_pos['x'], cur_pos['z']])-np.array([tgt_pos['x'], tgt_pos['z']]))))
-        state = self.preprocess(self.event.frame, cur_pos, tgt_pos)
+        state, bear = self.preprocess(self.event.frame, cur_pos, cur_ori, tgt_pos)
         
         self.observation_space = spaces.Box(low=0, high=255,
                                             shape=(state.shape[0], state.shape[1], state.shape[2]),
                                             dtype=np.uint8)
-        return state
+        return state, bear
 
     def render(self, mode='human'):
         # raise NotImplementedError
@@ -218,6 +270,7 @@ class RoboThorEnv(gym.Env):
     def close(self):
         self.controller.stop()
 
+
 def env_generator(split:str):
     split_path = os.path.join(os.path.dirname('gym_robothor/data_split/'), split + ".json")
     with open(split_path) as f:
@@ -225,7 +278,9 @@ def env_generator(split:str):
     
     env = RoboThorEnv(config_file='config_files/NavTaskTrain.json')
     
-    for e in episodes:
+    while True:
+        # e = random.choice(episodes)
+        e = random.choice(list(filter(lambda x:x['difficulty']=='easy', episodes)))
         env.controller.initialization_parameters['robothorChallengeEpisodeId'] = e['id']
         env.controller.initialization_parameters['shortest_path'] = e['shortest_path']
         
@@ -234,12 +289,14 @@ def env_generator(split:str):
         env.init_ori = e['initial_orientation']
         env.task.target_id = e['object_id']
 
+        print('>>>>>>> Using scene {}, {} LEVEL'.format(env.controller.initialization_parameters['robothorChallengeEpisodeId'], e['difficulty']))
+
         yield env
 
 
 if __name__ == '__main__':
     import time
 
-    for i in env_generator('training'):
+    for i in env_generator('train'):
         i.render() # render() always at the last
         time.sleep(0.1)
